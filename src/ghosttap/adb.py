@@ -55,3 +55,53 @@ class AdbClient:
             serial, state = line.split("\t", 1)
             result.append(Device(serial.strip(), state.strip()))
         return result
+
+    _DUMP_PATH = "/sdcard/ghosttap_dump.xml"
+
+    def dump_ui(self) -> str:
+        self._run(["shell", "uiautomator", "dump", self._DUMP_PATH])
+        xml = self._run(["exec-out", "cat", self._DUMP_PATH])
+        if "<hierarchy" not in xml:
+            raise DumpUnavailable("uiautomator dump returned no hierarchy")
+        return xml
+
+    def tap(self, x: int, y: int) -> None:
+        self._run(["shell", "input", "tap", str(x), str(y)])
+
+    def swipe(self, x1: int, y1: int, x2: int, y2: int, ms: int = 200) -> None:
+        self._run(["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms)])
+
+    def input_text(self, s: str) -> None:
+        # `input text` treats spaces as argument separators; %s is the accepted escape.
+        self._run(["shell", "input", "text", s.replace(" ", "%s")])
+
+    def keyevent(self, code: int) -> None:
+        self._run(["shell", "input", "keyevent", str(code)])
+
+    def wm_size(self) -> tuple[int, int]:
+        out = self._run(["shell", "wm", "size"])
+        target = None
+        for line in out.splitlines():
+            if "Override size" in line:
+                target = line
+        if target is None:
+            for line in out.splitlines():
+                if "Physical size" in line:
+                    target = line
+        if target is None:
+            raise AdbError(f"could not parse wm size from: {out!r}")
+        w_str, h_str = target.split(":", 1)[1].strip().lower().split("x")
+        return (int(w_str), int(h_str))
+
+    def current_focus(self) -> str:
+        out = self._run(["shell", "dumpsys", "window"])
+        for line in out.splitlines():
+            if "mCurrentFocus" in line:
+                return line.strip()
+        return ""
+
+    def wake(self) -> None:
+        self.keyevent(224)
+
+    def sleep(self) -> None:
+        self.keyevent(223)
