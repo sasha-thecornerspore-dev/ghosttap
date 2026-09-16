@@ -73,6 +73,11 @@ class AdbClient:
 
     def input_text(self, s: str) -> None:
         # `input text` treats spaces as argument separators; %s is the accepted escape.
+        # Only spaces are escaped here: `adb shell input text` runs through an
+        # on-device shell that reinterprets shell metacharacters ($ ; & | < > " '
+        # etc.), so symbol-containing passwords may be mistyped or truncated.
+        # Digits/PINs are unaffected. Robust per-character entry (e.g. via
+        # `input keyevent` sequences or an IME-based sender) is deferred to backlog.
         self._run(["shell", "input", "text", s.replace(" ", "%s")])
 
     def keyevent(self, code: int) -> None:

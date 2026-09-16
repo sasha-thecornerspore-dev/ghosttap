@@ -10,6 +10,7 @@ pytest.importorskip("PyQt6")
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from ghosttap.panel import PanelWindow  # noqa: E402
+from ghosttap.panel_model import DrawButton  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_dump.xml"
 
@@ -60,6 +61,34 @@ def test_refresh_handles_unavailable_dump():
     win = PanelWindow(Blocked(""), screen=(1080, 2160), canvas=(540, 1080))
     win.refresh()
     assert win.buttons == []
+
+
+def test_handle_click_selects_deepest():
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    win = PanelWindow(client, screen=(1080, 2160), canvas=(540, 1080))
+    win.buttons = [
+        DrawButton(label="container", rect=(0, 0, 400, 400), tap=(200, 200)),
+        DrawButton(label="child", rect=(10, 10, 60, 60), tap=(35, 35)),
+    ]
+
+    win.handle_click(35, 35)
+
+    assert client.taps == [(35, 35)]
+
+
+def test_refresh_survives_adb_error():
+    from ghosttap.adb import AdbError
+
+    class Erroring(FakeClient):
+        def dump_ui(self):
+            raise AdbError("adb shell uiautomator dump failed: device offline")
+
+    win = PanelWindow(Erroring(""), screen=(1080, 2160), canvas=(540, 1080))
+
+    win.refresh()  # must not raise
+
+    assert win.buttons == []
+    assert win.status.text().startswith("Error")
 
 
 def test_send_text_failure_does_not_leak_secret_or_submit_enter():

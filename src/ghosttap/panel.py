@@ -21,6 +21,8 @@ _KEY_HOME = 3
 _KEY_RECENTS = 187
 _KEY_POWER = 26
 _KEY_ENTER = 66
+_KEY_VOLUME_UP = 24
+_KEY_VOLUME_DOWN = 25
 
 
 class _Canvas(QWidget):
@@ -75,6 +77,8 @@ class PanelWindow(QWidget):
             ("Home", _KEY_HOME),
             ("Recents", _KEY_RECENTS),
             ("Power", _KEY_POWER),
+            ("Vol+", _KEY_VOLUME_UP),
+            ("Vol-", _KEY_VOLUME_DOWN),
         ]:
             b = QPushButton(name)
             b.clicked.connect(lambda _checked=False, c=code: self._safe(lambda: self.client.keyevent(c)))
@@ -94,22 +98,33 @@ class PanelWindow(QWidget):
     def refresh(self) -> None:
         try:
             xml = self.client.dump_ui()
+            nodes = flatten(parse(xml))
+            self.buttons = build_buttons(nodes, self.screen, self.canvas)
+            try:
+                focus = self.client.current_focus()
+            except Exception:
+                focus = ""
+            self.status.setText(f"{len(self.buttons)} elements · {focus}")
         except DumpUnavailable:
             self.buttons = []
             self.status.setText("This screen exposed no map (locked/secure). Use a manual layout or Send a blind PIN.")
-            self._canvas.update()
-            return
-        nodes = flatten(parse(xml))
-        self.buttons = build_buttons(nodes, self.screen, self.canvas)
-        self.status.setText(f"{len(self.buttons)} elements · {self.client.current_focus()}")
+        except Exception as exc:
+            self.buttons = []
+            self.status.setText(f"Error: {exc}")
         self._canvas.update()
 
     def handle_click(self, x: int, y: int) -> None:
+        best = None
+        best_area = None
         for btn in self.buttons:
             left, top, right, bottom = btn.rect
             if left <= x <= right and top <= y <= bottom:
-                self._safe(lambda b=btn: self.client.tap(*b.tap))
-                return
+                area = (right - left) * (bottom - top)
+                if best_area is None or area < best_area:
+                    best_area = area
+                    best = btn
+        if best is not None:
+            self._safe(lambda b=best: self.client.tap(*b.tap))
 
     def _send_text(self) -> None:
         text = self._text.text()

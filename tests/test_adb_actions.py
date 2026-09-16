@@ -41,6 +41,12 @@ def test_tap_builds_input_tap(monkeypatch):
     assert client._calls[-1] == ["shell", "input", "tap", "540", "1860"]
 
 
+def test_swipe_builds_command(monkeypatch):
+    client = make_client(monkeypatch, lambda args: "")
+    client.swipe(10, 20, 30, 40, 150)
+    assert client._calls[-1] == ["shell", "input", "swipe", "10", "20", "30", "40", "150"]
+
+
 def test_input_text_escapes_spaces(monkeypatch):
     client = make_client(monkeypatch, lambda args: "")
     client.input_text("hello world")
