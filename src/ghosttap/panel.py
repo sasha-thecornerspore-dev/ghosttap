@@ -84,6 +84,7 @@ class PanelWindow(QWidget):
         text_row = QHBoxLayout()
         self._text = QLineEdit()
         self._text.setPlaceholderText("type text / PIN, then Send")
+        self._text.setEchoMode(QLineEdit.EchoMode.Password)
         send = QPushButton("Send")
         send.clicked.connect(self._send_text)
         text_row.addWidget(self._text)
@@ -114,9 +115,14 @@ class PanelWindow(QWidget):
         text = self._text.text()
         if not text:
             return
-        self._safe(lambda: self.client.input_text(text))
-        self._safe(lambda: self.client.keyevent(_KEY_ENTER))
+        try:
+            self.client.input_text(text)
+        except Exception:
+            # never include the exception text — it can contain the typed secret
+            self.status.setText("Error: failed to send text")
+            return
         self._text.clear()
+        self._safe(lambda: self.client.keyevent(_KEY_ENTER))
 
     def _safe(self, action) -> None:
         try:

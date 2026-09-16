@@ -20,6 +20,7 @@ class FakeClient:
     def __init__(self, xml):
         self._xml = xml
         self.taps = []
+        self.keyevents = []
 
     def dump_ui(self):
         return self._xml
@@ -34,7 +35,7 @@ class FakeClient:
         self.taps.append((x, y))
 
     def keyevent(self, code):
-        pass
+        self.keyevents.append(code)
 
     def input_text(self, s):
         pass
@@ -59,3 +60,22 @@ def test_refresh_handles_unavailable_dump():
     win = PanelWindow(Blocked(""), screen=(1080, 2160), canvas=(540, 1080))
     win.refresh()
     assert win.buttons == []
+
+
+def test_send_text_failure_does_not_leak_secret_or_submit_enter():
+    from ghosttap.adb import AdbError
+
+    class FailingInput(FakeClient):
+        def input_text(self, s):
+            # Mirrors AdbClient._run, which embeds the raw command (including
+            # the typed secret) into the exception message on a non-zero exit.
+            raise AdbError(f"adb shell input text {s} failed: some device error")
+
+    client = FailingInput(FIXTURE.read_text(encoding="utf-8"))
+    win = PanelWindow(client, screen=(1080, 2160), canvas=(540, 1080))
+    win._text.setText("1234")
+
+    win._send_text()
+
+    assert "1234" not in win.status.text()
+    assert client.keyevents == []
