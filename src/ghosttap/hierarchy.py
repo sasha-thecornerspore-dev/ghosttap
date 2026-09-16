@@ -71,3 +71,37 @@ def flatten(node: Node) -> list[Node]:
     for child in node.children:
         out.extend(flatten(child))
     return out
+
+
+def actionable(nodes: list[Node]) -> list[Node]:
+    result: list[Node] = []
+    for n in nodes:
+        if not n.enabled:
+            continue
+        left, top, right, bottom = n.bounds
+        if right <= left or bottom <= top:
+            continue
+        if n.clickable or n.long_clickable or n.scrollable or n.editable:
+            result.append(n)
+    return result
+
+
+def _short_rid(resource_id: str) -> str:
+    return resource_id.split("/")[-1] if "/" in resource_id else resource_id
+
+
+def label(node: Node) -> str:
+    if node.text.strip():
+        return node.text.strip()
+    if node.content_desc.strip():
+        return node.content_desc.strip()
+    if node.resource_id:
+        return _short_rid(node.resource_id)
+    if node.cls:
+        return node.cls.split(".")[-1]
+    return "?"
+
+
+def center(node: Node) -> tuple[int, int]:
+    left, top, right, bottom = node.bounds
+    return ((left + right) // 2, (top + bottom) // 2)
