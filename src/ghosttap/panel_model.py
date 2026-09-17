@@ -6,6 +6,26 @@ from .hierarchy import Node, actionable, label, center
 from .profiles import ManualLayout
 
 
+def focused_field(nodes: list[Node]) -> Node | None:
+    """The text field a typed string would land in: the focused editable node,
+    else the first editable node, else None (nothing typable on screen)."""
+    editables = [n for n in nodes if n.editable and n.enabled]
+    for node in editables:
+        if node.focused:
+            return node
+    return editables[0] if editables else None
+
+
+def preview_text(text: str, is_password: bool) -> str:
+    """A human-readable preview of what will be typed, for the confirm step.
+    Password/PIN fields are masked (dots + digit count) so the value is never
+    shown; other fields show the literal text."""
+    if is_password:
+        n = len(text)
+        return "*" * n + f"  ({n} digit{'s' if n != 1 else ''})"
+    return text
+
+
 @dataclass
 class DrawButton:
     label: str

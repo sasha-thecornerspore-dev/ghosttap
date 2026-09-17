@@ -22,6 +22,7 @@ class FakeClient:
         self._xml = xml
         self.taps = []
         self.keyevents = []
+        self.input_texts = []
 
     def dump_ui(self):
         return self._xml
@@ -39,7 +40,7 @@ class FakeClient:
         self.keyevents.append(code)
 
     def input_text(self, s):
-        pass
+        self.input_texts.append(s)
 
 
 def test_refresh_populates_buttons():
@@ -91,7 +92,37 @@ def test_refresh_survives_adb_error():
     assert win.status.text().startswith("Error")
 
 
-def test_send_text_failure_does_not_leak_secret_or_submit_enter():
+def _win(client):
+    win = PanelWindow(client, screen=(1080, 2160), canvas=(540, 1080))
+    win._confirm = lambda preview, target: True  # never open a real dialog in tests
+    return win
+
+
+def test_type_injects_text_without_pressing_enter():
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    win = _win(client)
+    win._text.setText("1234")
+
+    win._type_text()
+
+    assert client.input_texts == ["1234"]  # text was injected
+    assert client.keyevents == []           # but Enter was NOT sent
+    assert win._text.text() == ""           # box cleared after typing
+
+
+def test_type_is_cancelled_when_not_confirmed():
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    win = _win(client)
+    win._confirm = lambda preview, target: False
+    win._text.setText("1234")
+
+    win._type_text()
+
+    assert client.input_texts == []  # nothing typed when the user declines
+    assert client.keyevents == []
+
+
+def test_type_failure_does_not_leak_secret():
     from ghosttap.adb import AdbError
 
     class FailingInput(FakeClient):
@@ -101,10 +132,30 @@ def test_send_text_failure_does_not_leak_secret_or_submit_enter():
             raise AdbError(f"adb shell input text {s} failed: some device error")
 
     client = FailingInput(FIXTURE.read_text(encoding="utf-8"))
-    win = PanelWindow(client, screen=(1080, 2160), canvas=(540, 1080))
+    win = _win(client)
     win._text.setText("1234")
 
-    win._send_text()
+    win._type_text()
 
     assert "1234" not in win.status.text()
     assert client.keyevents == []
+
+
+def test_press_enter_sends_enter_keyevent():
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    win = _win(client)
+
+    win._press_enter()
+
+    assert client.keyevents == [66]
+
+
+def test_refresh_sets_target_from_focused_password_field():
+    # The fixture has a focused password EditText (content-desc "Password").
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    win = _win(client)
+
+    win.refresh()
+
+    assert win._target_label == "Password"
+    assert win._target_is_password is True
