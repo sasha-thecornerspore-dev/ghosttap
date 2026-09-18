@@ -2,12 +2,31 @@
 name = "ghosttap"
 version = "0.1.0"
 description = "Operate an Android device from the PC via adb when the screen is black or broken."
+readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Alexander Mitriache", email = "sasha@thecornerspore.dev" }]
+keywords = ["android", "adb", "scrcpy", "accessibility", "flag_secure", "uiautomator"]
 dependencies = ["PyQt6>=6.11"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pyinstaller>=6.11"]
+
+[project.scripts]
+ghosttap = "ghosttap.main:main"
+
+[project.urls]
+Homepage = "https://github.com/sasha-thecornerspore-dev/ghosttap"
+Repository = "https://github.com/sasha-thecornerspore-dev/ghosttap"
+Issues = "https://github.com/sasha-thecornerspore-dev/ghosttap/issues"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtGui import QColor, QPainter, QPen
+from PyQt6.QtCore import Qt, QRect, QUrl
+from PyQt6.QtGui import QColor, QDesktopServices, QPainter, QPen
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -13,9 +13,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from . import __version__
 from .adb import DumpUnavailable
 from .hierarchy import parse, flatten, label
 from .panel_model import DrawButton, build_buttons, focused_field, preview_text
+from .update import check_for_update
 
 # Android keycodes used by the hardware-key row.
 _KEY_BACK = 4
@@ -53,7 +55,13 @@ class _Canvas(QWidget):
 
 
 class PanelWindow(QWidget):
-    def __init__(self, client, screen: tuple[int, int], canvas: tuple[int, int] = (450, 900)):
+    def __init__(
+        self,
+        client,
+        screen: tuple[int, int],
+        canvas: tuple[int, int] = (450, 900),
+        update=None,
+    ):
         super().__init__()
         self.client = client
         self.screen = screen
@@ -65,16 +73,31 @@ class PanelWindow(QWidget):
         self._target_is_password = False
         # Confirm hook — swapped out in tests so the dialog never blocks.
         self._confirm = self._gui_confirm
+        # Update state; `update` is a Release (newer) or None. The checker is a
+        # hook so tests can drive it without touching the network.
+        self._update = update
+        self._update_check = lambda: check_for_update(__version__)
 
-        self.setWindowTitle("GhostTap")
+        self.setWindowTitle(f"GhostTap {__version__}")
         root = QVBoxLayout(self)
 
         self.status = QLabel("Ready.")
         root.addWidget(self.status)
 
+        self.update_banner = QLabel("")
+        self.update_banner.setStyleSheet("color: #0c8; font-weight: bold;")
+        root.addWidget(self.update_banner)
+        if self._update is not None:
+            self._show_update_banner(self._update)
+
+        header = QHBoxLayout()
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self.refresh)
-        root.addWidget(refresh_btn)
+        header.addWidget(refresh_btn)
+        updates_btn = QPushButton("Check for updates")
+        updates_btn.clicked.connect(self._check_updates)
+        header.addWidget(updates_btn)
+        root.addLayout(header)
 
         # The canvas keeps its logical size inside a scroll area so the input
         # controls below are always visible, however small the window is.
@@ -197,6 +220,25 @@ class PanelWindow(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         return reply == QMessageBox.StandardButton.Yes
+
+    def _show_update_banner(self, release) -> None:
+        self._update = release
+        self.update_banner.setText(
+            f"Update available: {release.tag} (you have {__version__}). "
+            "Click 'Check for updates' to download."
+        )
+
+    def _check_updates(self) -> None:
+        release = self._update_check()
+        if release is None:
+            self.status.setText(f"Up to date (v{__version__}).")
+            return
+        self._show_update_banner(release)
+        # Prefer the release page; fall back to the first asset's download URL.
+        target = release.url or (release.assets[0][1] if release.assets else "")
+        if target:
+            QDesktopServices.openUrl(QUrl(target))
+        self.status.setText(f"Opening download for {release.tag}…")
 
     def _safe(self, action) -> None:
         try:

@@ -159,3 +159,23 @@ def test_refresh_sets_target_from_focused_password_field():
 
     assert win._target_label == "Password"
     assert win._target_is_password is True
+
+
+def test_update_banner_shown_when_update_passed():
+    from ghosttap.update import Release
+
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    rel = Release(tag="v9.9.9", version=(9, 9, 9), url="https://example/rel", assets=[])
+    win = PanelWindow(client, screen=(1080, 2160), canvas=(540, 1080), update=rel)
+
+    assert "v9.9.9" in win.update_banner.text()
+
+
+def test_check_updates_reports_up_to_date():
+    client = FakeClient(FIXTURE.read_text(encoding="utf-8"))
+    win = _win(client)
+    win._update_check = lambda: None
+
+    win._check_updates()
+
+    assert "Up to date" in win.status.text()

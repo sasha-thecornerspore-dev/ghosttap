@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import os
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_ADB = "C:/Users/sasha/Programs/scrcpy-win64-v3.3.4/adb.exe"
+
+
+def resolve_adb(adb_path: str) -> str:
+    """Pick a usable adb binary: the configured path if it exists, else one on
+    PATH, else the bare name 'adb' (let the OS resolve it). This keeps the app
+    working on machines that don't have the bundled scrcpy path."""
+    if adb_path and Path(adb_path).exists():
+        return adb_path
+    return shutil.which("adb") or "adb"
 
 
 def _default_adb() -> str:
